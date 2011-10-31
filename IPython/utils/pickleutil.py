@@ -20,6 +20,7 @@ import sys
 from types import FunctionType
 
 import codeutil
+from codetranslation import current_python_version, translate_code_to_current_version
 
 #-------------------------------------------------------------------------------
 # Classes
@@ -68,11 +69,14 @@ class CannedFunction(CannedObject):
         self.defaults = f.func_defaults
         self.module = f.__module__ or '__main__'
         self.__name__ = f.__name__
+        self.python_version = current_python_version
 
     def _checkType(self, obj):
         assert isinstance(obj, FunctionType), "Not a function type"
 
     def getObject(self, g=None):
+        code = translate_code_to_current_version(self.code, self.python_version)
+
         # try to load function back into its module:
         if not self.module.startswith('__'):
             try:
@@ -84,8 +88,10 @@ class CannedFunction(CannedObject):
 
         if g is None:
             g = globals()
-        newFunc = FunctionType(self.code, g, self.__name__, self.defaults)
+        newFunc = FunctionType(code, g, self.__name__, self.defaults)
         return newFunc
+
+
 
 #-------------------------------------------------------------------------------
 # Functions
@@ -151,3 +157,5 @@ def uncanSequence(obj, g=None):
 
 def rebindFunctionGlobals(f, glbls):
     return FunctionType(f.func_code, glbls)
+
+
