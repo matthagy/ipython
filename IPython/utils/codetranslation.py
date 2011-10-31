@@ -35,6 +35,7 @@ def translate_code(code, src_version, dst_version):
 def simple_memorize(func=None, cache=None):
     if func is None:
         return lambda func: simple_memorize(func, cache)
+
     if cache is None:
         cache = {}
 
@@ -53,12 +54,8 @@ def load_module(path, name=None, extra_gbls=None):
 
     mod = new.module(name)
     gbls = vars(mod)
-    gbls.update(
-        __name__=name,
-        __file__=path)
-
-    if extra_gbls:
-        gbls.update(extra_gbls)
+    gbls.update(__name__=name, __file__=path)
+    gbls.update(extra_gbls or {})
 
     execfile(path, gbls)
 
@@ -92,7 +89,7 @@ class CappedSizeDict(dict):
 
 
 #
-# Hacks to load byteplay (assembler/disassembler) that target
+# Hacks to load byteplay modules (assembler/disassembler) that target
 # different Python versions
 #
 
@@ -141,8 +138,8 @@ def compile_code(asm, python_version):
 #
 # Define a collection of functions that can translate between specific
 # Python versions of bytecode (e.g. 2.6 -> 2.7). Next a directed graph
-# constructed with the arcs being these specific translations. Then the
-# translation between any two arbitrary Python versions is accomplished
+# is constructed with the arcs being these specific translations. Then
+# the translation between any two arbitrary Python versions is accomplished
 # by finding the shortest path between these two versions.
 #
 
@@ -157,15 +154,16 @@ def cached_translate_code(code, src_version, dst_version):
     dst_asm = translate_assembly(src_asm, src_version, dst_version)
     return compile_code(dst_asm, dst_version)
 
-@simple_memorize
-def get_translation_path(src_version, dst_version):
-    return list(translation_graph.find_optimal_path(src_version, dst_version).iter_arcs())
-
 def translate_assembly(src_asm, src_version, dst_version):
     asm = src_asm
     for translation in get_translation_path(src_version, dst_version):
         asm = translation.translate(asm)
     return asm
+
+@simple_memorize
+def get_translation_path(src_version, dst_version):
+    return list(translation_graph.find_optimal_path(src_version, dst_version).iter_arcs())
+
 
 #
 # Graph utilities
@@ -299,6 +297,7 @@ class Translation(Arc):
         validate_asm(dst_asm)
         return dst_asm
 
+
 class TranslationGraph(DirectedGraph):
 
     arc_factory = Translation
@@ -331,7 +330,7 @@ def copy_asm(asm, version=None, **kwds):
     return xbyteplay.Code(*args)
 
 def asm_rebuild_helper(asm, func):
-    return copy_asm(asm, code=list(func(asm.code)))
+    return copy_asm(asm, code=func(asm.code))
 
 def get_op_version(op):
     return xbyteplay_modules[op.__class__.__module__].python_version
@@ -434,7 +433,7 @@ class Translate26to27(BaseTranslator):
         # likely not worth the effort to implement these more
         # complex transformations just yet
 
-        def func(ops):
+        def rebuild_ops(ops):
             src_xbyteplay = get_xbyteplay(self.src_version)
             dst_xbyteplay = get_xbyteplay(self.dst_version)
 
@@ -448,14 +447,14 @@ class Translate26to27(BaseTranslator):
                 else:
                     yield op, arg
 
-        return asm_rebuild_helper(asm, func)
+        return asm_rebuild_helper(asm, rebuild_ops)
 
     def fix_list_append(self, asm):
         # in 2.6 LIST_APPEND pops the list from the stack, where as
         # in 2.7 the list remains on the stack. We simply add a POP_TOP
         # to duplicate 2.6 behavior.
 
-        def func(ops):
+        def rebuild_ops(ops):
             xbyteplay = get_xbyteplay(self.src_version)
 
             for op,arg in ops:
@@ -465,7 +464,7 @@ class Translate26to27(BaseTranslator):
                 else:
                     yield op, arg
 
-        return asm_rebuild_helper(asm, func)
+        return asm_rebuild_helper(asm, rebuild_ops)
 
 
 #
