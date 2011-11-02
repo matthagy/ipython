@@ -427,11 +427,11 @@ class Translate26to27(BaseTranslator):
         return asm
 
     def upgrade_conditions(self, asm):
-        # go through replace all JUMP_IF_FALSE/TRUE with
+        # Replace all JUMP_IF_FALSE/TRUE with 
         # DUP_TOP POP_JUMP_IF_FALSE/TRUE. There are definitely
         # more efficient ways to use these new instructions, but
         # likely not worth the effort to implement these more
-        # complex transformations just yet
+        # complex transformations just yet.
 
         def rebuild_ops(ops):
             src_xbyteplay = get_xbyteplay(self.src_version)
@@ -450,7 +450,7 @@ class Translate26to27(BaseTranslator):
         return asm_rebuild_helper(asm, rebuild_ops)
 
     def fix_list_append(self, asm):
-        # in 2.6 LIST_APPEND pops the list from the stack, where as
+        # In 2.6 LIST_APPEND pops the list from the stack, where as
         # in 2.7 the list remains on the stack. We simply add a POP_TOP
         # to duplicate 2.6 behavior.
 
